@@ -101,7 +101,7 @@ module OTTER_MCU (
     .B_TYPE(B_immed),
     .J_TYPE(J_immed)
     );
-    
+
     ALU ALU (
         .SRC_A  (aluAin),
         .SRC_B  (aluBin),
@@ -203,6 +203,14 @@ module OTTER_MCU (
         .TWO  (de_ex_S_immed),
         .THREE(de_ex_inst.pc),
         .OUT  (aluBin)
+    );
+
+    HAZARD_DETECTION hd (
+      .IDEX_MemRead(),
+      .IDEX_rt(),
+      .IFID_rs(),
+      .IFID_rt(),
+      .stall()
     );
 
     assign addr1      = pc[15:2];

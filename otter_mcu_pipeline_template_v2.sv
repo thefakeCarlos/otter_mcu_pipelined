@@ -58,7 +58,7 @@ module OTTER_MCU (
     wire [31:0] pc, next_pc, A, B,
                 I_immed, S_immed, U_immed, J_immed, B_immed,
                 aluBin, aluAin, aluResult,
-                mem_data, jal, jalr, branch;
+                mem_data, jal, jalr, branch, pcin;
     logic [31:0] wd;
     wire [31:0] IR;
     wire [31:0] rs1, rs2;
@@ -168,14 +168,9 @@ module OTTER_MCU (
         .CLK      (CLK),
         .RST      (RESET),
         .PC_WRITE (pcWrite),
-        .JALR     (jalr),
-        .BRANCH   (branch),
-        .JAL      (jal),
-        .MTVEC    (),
-        .MEPC     (),
         .PC_OUT   (pc),
         .PC_OUT_INC(next_pc),
-        .PC_SOURCE(pc_sel)
+        .PC_IN(pcin)
     );
 
     // Read in ID stage, written in WB stage
@@ -255,25 +250,36 @@ module OTTER_MCU (
 
     assign pcWrite = !(stall);
     assign flush = (pc_sel == 3'b001 || pc_sel == 3'b011 || pc_sel == 3'b010);
-    always_ff @(posedge CLK) begin
-      if(pc_sel == 3'b010)
-          flush_twice <= flush;
-      else 
-        flush_twice <= 1'b0
-    end
+    assign flush_twice = pc_sel == 3'b010;
     assign addr1      = pc[15:2];
     assign opcode     = if_de_ir[6:0];
     assign IOBUS_ADDR = ex_mem_aluResult;
     assign IOBUS_OUT  = ex_mem_rs2;
+
+   
+
+    //Instantiate PC Multiplexer
+    PC_MUX PCMUX(.PC_OUT_PLUS_FOUR(next_pc), .JALR(jalr), .BRANCH(branch),
+     .JAL(jal), .MTVEC(), .MEPC(), .PC_SOURCE(pc_sel), .PC_MUX_OUT(pcin));
 
     //==========================================================
     //==== Instruction Fetch ====================================
     //==========================================================
 
     always_ff @(posedge CLK) begin
+        if(flush_twice)begin
+          if_de_ir <= 0;
+        end
+
+        else if(stall)begin
+
+        end
+
+        else begin
         if_de_pc      <= pc;
         if_de_ir      <= IR;
         if_de_next_pc <= next_pc;
+        end
     end
 
 
@@ -291,9 +297,12 @@ module OTTER_MCU (
     assign de_inst.pc        = if_de_pc;
     assign de_inst.alu_fun   = alu_fun;
     assign de_inst.mem_type  = if_de_ir[14:12];
-    assign de_inst.rf_wr_sel = rf_wr_sel;
+
     assign de_inst.regWrite  = regWrite;
     assign de_inst.memWrite  = memWrite;
+
+
+    assign de_inst.rf_wr_sel = rf_wr_sel;
     assign de_inst.memRead2  = memRead2;
     assign de_inst.alu_srcA  = alu_srcA;
     assign de_inst.alu_srcB  = alu_srcB;
@@ -310,6 +319,12 @@ module OTTER_MCU (
                            ||  de_inst.opcode == OP);
 
     always_ff @(posedge CLK) begin
+      if(flush | stall)begin
+        de_ex_inst <= 0;
+      end 
+ 
+
+      else begin
         de_ex_inst    <= de_inst;
         de_ex_opA     <= rs1;
         de_ex_rs2     <= rs2;
@@ -318,6 +333,9 @@ module OTTER_MCU (
         de_ex_U_immed <= U_immed;
         de_ex_J_immed <= J_immed;
         de_ex_B_immed <= B_immed;
+
+      end 
+
     end
 
     //==========================================================

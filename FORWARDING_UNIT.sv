@@ -16,17 +16,17 @@ module FORWARDING_UNIT(
 
    always_comb begin
     // Forward A
-    if (ex_mem_rdused && ex_mem_rdaddr == de_ex_rs1addr && de_ex_rs1used && ex_mem_regwrite)
+    if (ex_mem_rdused && (ex_mem_rdaddr == de_ex_rs1addr) && de_ex_rs1used && ex_mem_regwrite && (de_ex_rs1addr != 0) )
         forwardA = 2'b01;
-    else if (mem_wb_rdused && mem_wb_rdaddr == de_ex_rs1addr && de_ex_rs1used && mem_wb_regwrite)
+    else if (mem_wb_rdused && mem_wb_rdaddr == de_ex_rs1addr && de_ex_rs1used && mem_wb_regwrite && (de_ex_rs1addr != 0))
         forwardA = 2'b10;
     else
         forwardA = 2'b00;
 
     // Forward B
-    if (ex_mem_rdused && ex_mem_rdaddr == de_ex_rs2addr && de_ex_rs2used && ex_mem_regwrite)
+    if (ex_mem_rdused && ex_mem_rdaddr == de_ex_rs2addr && de_ex_rs2used && ex_mem_regwrite && (de_ex_rs2addr != 0))
         forwardB = 2'b01;
-    else if (mem_wb_rdused && mem_wb_rdaddr == de_ex_rs2addr && de_ex_rs2used && mem_wb_regwrite)
+    else if (mem_wb_rdused && mem_wb_rdaddr == de_ex_rs2addr && de_ex_rs2used && mem_wb_regwrite && (de_ex_rs1addr != 0))
         forwardB = 2'b10;
     else
         forwardB = 2'b00;

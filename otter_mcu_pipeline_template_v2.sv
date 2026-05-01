@@ -264,8 +264,8 @@ module OTTER_MCU (
       );
 
     assign pcWrite = !(stall);
-    assign flush = (pc_sel == 3'b001 || pc_sel == 3'b011 || pc_sel == 1'b1);
-    assign flush_twice = pc_sel == 1'b1;
+    assign flush = (pc_sel == 3'b001 || pc_sel == 3'b011 || branch_taken);
+    assign flush_twice = branch_taken;
     assign addr1      = pc[15:2];
     assign opcode     = if_de_ir[6:0];
     assign IOBUS_ADDR = ex_mem_aluResult;

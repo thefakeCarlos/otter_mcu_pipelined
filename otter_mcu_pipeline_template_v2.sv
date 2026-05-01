@@ -23,6 +23,7 @@ typedef enum logic [6:0] {
 // Carries decoded instruction info through pipeline registers
 typedef struct packed {
     opcode_t     opcode;
+    logic [2:0]  ir_funct;
     logic [4:0]  rs1_addr;
     logic [4:0]  rs2_addr;
     logic [4:0]  rd_addr;
@@ -69,7 +70,8 @@ module OTTER_MCU (
     wire [3:0]  alu_fun;
     wire        alu_srcA;
     wire [1:0]  alu_srcB;
-    logic       br_lt, br_eq, br_ltu, stall, flush, flush_twice;
+    logic       br_lt, br_eq, br_ltu, branch_taken, stall, flush, flush_twice;
+    logic [31:0] pc_mux_out;
     wire [1:0]  rf_wr_sel;
     logic [1:0] forwardA, forwardB;
     logic [31:0] de_ex_opA_fwd, de_ex_rs2_fwd;
@@ -129,19 +131,32 @@ module OTTER_MCU (
         .BR_LTU(br_ltu)
     );
 
+    CU_BRANCH_DCDR CU_BRANCH_DCDR (
+      .IR_OPCODE(de_ex_inst.opcode),
+      .IR_FUNCT(de_ex_inst.ir_funct),
+      .BR_EQ(br_eq),
+      .BR_LT(br_lt),
+      .BR_LTU(br_ltu),
+      .BRANCH_TAKEN(branch_taken)
+      );
+
+    always_comb begin
+      case (branch_taken)
+        1'b0: pcin = pc_mux_out;
+        1'b1: pcin = 3'b010;
+        default: pcin = pc_mux_out;
+      endcase
+    end
+
     CU_DCDR CU_DCDR (
         .IR_30    (if_de_ir[30]),
         .IR_OPCODE(if_de_ir[6:0]),
         .IR_FUNCT (if_de_ir[14:12]),
-        .BR_EQ    (br_eq),
-        .BR_LT    (br_lt),
-        .BR_LTU   (br_ltu),
         .ALU_FUN  (alu_fun),
         .ALU_SRCA (alu_srcA),
         .ALU_SRCB (alu_srcB),
-        .PC_SOURCE(pc_sel),
+        .BRANCH_TAKEN(pc_sel),
         .RF_WR_SEL(rf_wr_sel),
-        .PC_WRITE (),
         .REG_WRITE(regWrite),
         .MEM_WE2  (memWrite),
         .MEM_RDEN1(memRead1),
@@ -249,8 +264,8 @@ module OTTER_MCU (
       );
 
     assign pcWrite = !(stall);
-    assign flush = (pc_sel == 3'b001 || pc_sel == 3'b011 || pc_sel == 3'b010);
-    assign flush_twice = pc_sel == 3'b010;
+    assign flush = (pc_sel == 3'b001 || pc_sel == 3'b011 || pc_sel == 1'b1);
+    assign flush_twice = pc_sel == 1'b1;
     assign addr1      = pc[15:2];
     assign opcode     = if_de_ir[6:0];
     assign IOBUS_ADDR = ex_mem_aluResult;
@@ -260,7 +275,7 @@ module OTTER_MCU (
 
     //Instantiate PC Multiplexer
     PC_MUX PCMUX(.PC_OUT_PLUS_FOUR(next_pc), .JALR(jalr), .BRANCH(branch),
-     .JAL(jal), .MTVEC(), .MEPC(), .PC_SOURCE(pc_sel), .PC_MUX_OUT(pcin));
+     .JAL(jal), .MTVEC(), .MEPC(), .BRANCH_TAKEN(pc_sel), .PC_MUX_OUT(pc_mux_out));
 
     //==========================================================
     //==== Instruction Fetch ====================================
@@ -291,6 +306,7 @@ module OTTER_MCU (
     assign OPCODE = opcode_t'(if_de_ir[6:0]); // Cast raw bits to enum type
 
     assign de_inst.opcode    = OPCODE;
+    assign de_inst.ir_funct  = if_de_ir[14:12];
     assign de_inst.rs1_addr  = if_de_ir[19:15];
     assign de_inst.rs2_addr  = if_de_ir[24:20];
     assign de_inst.rd_addr   = if_de_ir[11:7];

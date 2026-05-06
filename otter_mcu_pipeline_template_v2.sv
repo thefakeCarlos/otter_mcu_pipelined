@@ -59,8 +59,8 @@ module OTTER_MCU (
     wire [31:0] pc, next_pc, A, B,
                 I_immed, S_immed, U_immed, J_immed, B_immed,
                 aluBin, aluAin, aluResult,
-                mem_data, jal, jalr, branch, pcin;
-    logic [31:0] wd;
+                mem_data, jal, jalr, branch;
+    logic [31:0] wd, pcin;
     wire [31:0] IR;
     wire [31:0] rs1, rs2;
     wire        memRead1, memRead2;

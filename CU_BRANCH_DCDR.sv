@@ -16,29 +16,17 @@ module CU_BRANCH_DCDR (
 );
 
   always_comb begin
-    if (IR_OPCODE == 7'b1100011) BRANCH_TAKEN = 1'b0;
-    case (IR_FUNCT)
-      3'b000: begin
-        if (BR_EQ == 1'b1) BRANCH_TAKEN = 1'b1;
-      end
-      3'b001: begin
-        if (BR_EQ == 1'b0) BRANCH_TAKEN = 1'b1;
-      end
-      3'b100: begin
-        if (BR_LT == 1'b1) BRANCH_TAKEN = 1'b1;
-      end
-      3'b101: begin
-        if (BR_LT == 1'b0) BRANCH_TAKEN = 1'b1;
-      end
-      3'b110: begin
-        if (BR_LTU == 1'b1) BRANCH_TAKEN = 1'b1;
-      end
-      3'b111: begin
-        if (BR_LTU == 1'b0) BRANCH_TAKEN = 1'b1;
-      end
-      default: begin
-        BRANCH_TAKEN = 1'b0;
-      end
-    endcase
-  end
+    BRANCH_TAKEN = 1'b0;  // default
+    if (IR_OPCODE == 7'b1100011) begin  // only evaluate for BRANCH opcode
+        case (IR_FUNCT)
+            3'b000: if (BR_EQ)        BRANCH_TAKEN = 1'b1;
+            3'b001: if (!BR_EQ)       BRANCH_TAKEN = 1'b1;
+            3'b100: if (BR_LT)        BRANCH_TAKEN = 1'b1;
+            3'b101: if (!BR_LT)       BRANCH_TAKEN = 1'b1;
+            3'b110: if (BR_LTU)       BRANCH_TAKEN = 1'b1;
+            3'b111: if (!BR_LTU)      BRANCH_TAKEN = 1'b1;
+            default: BRANCH_TAKEN = 1'b0;
+        endcase
+    end
+end
 endmodule

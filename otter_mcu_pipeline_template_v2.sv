@@ -60,10 +60,11 @@ module OTTER_MCU (
                 I_immed, S_immed, U_immed, J_immed, B_immed,
                 aluBin, aluAin, aluResult,
                 mem_data, jal, jalr, branch;
-    logic [31:0] wd, pcin;
+    logic [31:0] wd;
+    logic [2:0]pc_branch_sel;
     wire [31:0] IR;
     wire [31:0] rs1, rs2;
-    wire        memRead1, memRead2;
+    wire        memRead2;
     logic [13:0] addr1;
     wire        pcWrite, regWrite, memWrite;
     logic [2:0] pc_sel;
@@ -77,12 +78,29 @@ module OTTER_MCU (
     logic [31:0] de_ex_opA_fwd, de_ex_rs2_fwd;
     // IF/DE pipeline registers
     logic [31:0] if_de_pc, if_de_next_pc, if_de_ir;
+    
+    initial begin
+    if_de_ir      = 0;
+    if_de_pc      = 0;
+    if_de_next_pc = 0;
+    end
 
     // DE/EX pipeline registers
     logic [31:0] de_ex_opA, de_ex_rs2;
     logic [31:0] de_ex_I_immed, de_ex_S_immed, de_ex_U_immed,
                  de_ex_J_immed, de_ex_B_immed;
     instr_t      de_ex_inst, de_inst;
+    
+    initial begin
+    de_ex_inst = 0;
+    de_ex_J_immed = 0;
+    de_ex_B_immed = 0;
+    de_ex_I_immed = 0;
+    de_ex_S_immed = 0;
+    de_ex_U_immed = 0;
+    de_ex_opA     = 0;
+    de_ex_rs2     = 0;
+    end
 
     // EX/MEM pipeline registers
     logic [31:0] ex_mem_aluResult, ex_mem_rs2;
@@ -142,9 +160,9 @@ module OTTER_MCU (
 
     always_comb begin
       case (branch_taken)
-        1'b0: pcin = pc_mux_out;
-        1'b1: pcin = 3'b010;
-        default: pcin = pc_mux_out;
+        1'b0: pc_branch_sel = pc_sel;
+        1'b1: pc_branch_sel = 3'b010;
+        default: pc_branch_sel = pc_sel;
       endcase
     end
 
@@ -155,17 +173,16 @@ module OTTER_MCU (
         .ALU_FUN  (alu_fun),
         .ALU_SRCA (alu_srcA),
         .ALU_SRCB (alu_srcB),
-        .BRANCH_TAKEN(pc_sel),
         .RF_WR_SEL(rf_wr_sel),
+        .BRANCH_TAKEN(pc_sel),
         .REG_WRITE(regWrite),
         .MEM_WE2  (memWrite),
-        .MEM_RDEN1(memRead1),
         .MEM_RDEN2(memRead2)
     );
 
     Memory OTTER_MEMORY (
         .MEM_CLK  (CLK),
-        .MEM_RDEN1(memRead1),
+        .MEM_RDEN1(1'b1),
         .MEM_RDEN2(ex_mem_inst.memRead2),
         .MEM_WE2  (ex_mem_inst.memWrite),
         .MEM_ADDR1(addr1),
@@ -185,7 +202,7 @@ module OTTER_MCU (
         .PC_WRITE (pcWrite),
         .PC_OUT   (pc),
         .PC_OUT_INC(next_pc),
-        .PC_IN(pcin)
+        .PC_IN(pc_mux_out)
     );
 
     // Read in ID stage, written in WB stage
@@ -275,7 +292,7 @@ module OTTER_MCU (
 
     //Instantiate PC Multiplexer
     PC_MUX PCMUX(.PC_OUT_PLUS_FOUR(next_pc), .JALR(jalr), .BRANCH(branch),
-     .JAL(jal), .MTVEC(), .MEPC(), .BRANCH_TAKEN(pc_sel), .PC_MUX_OUT(pc_mux_out));
+     .JAL(jal), .MTVEC(), .MEPC(), .BRANCH_TAKEN(pc_branch_sel), .PC_MUX_OUT(pc_mux_out));
 
     //==========================================================
     //==== Instruction Fetch ====================================

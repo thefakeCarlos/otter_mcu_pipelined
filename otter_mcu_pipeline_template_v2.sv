@@ -299,7 +299,7 @@ module OTTER_MCU (
     //==========================================================
 
     always_ff @(posedge CLK) begin
-        if(flush_twice)begin
+        if(flush)begin
           if_de_ir <= 0;
         end
 
@@ -352,7 +352,7 @@ module OTTER_MCU (
                            ||  de_inst.opcode == OP);
 
     always_ff @(posedge CLK) begin
-      if(flush | stall)begin
+      if(flush_twice | stall)begin
         de_ex_inst <= 0;
       end 
  

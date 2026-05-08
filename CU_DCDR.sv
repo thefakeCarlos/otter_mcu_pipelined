@@ -65,7 +65,7 @@ module CU_DCDR (
         ALU_SRCB  = 2'b01;
         RF_WR_SEL = 2'b10;
         MEM_RDEN2 = 1'b1;
-        REG_WRITE = 1'b0;
+        REG_WRITE = 1'b1;
       end
       7'b0110111: begin  // LUI
         ALU_FUN   = 4'b1001;

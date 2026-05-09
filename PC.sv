@@ -6,29 +6,30 @@
 // Module Name: PC
 //////////////////////////////////////////////////////////////////////////////////
 
-module PC(
+module PC (
     input logic CLK,
     input logic RST,
     input logic PC_WRITE,
-    input logic [31:0] JALR,
-    input logic [31:0] BRANCH,
-    input logic [31:0] JAL,
-    input logic [31:0] MTVEC,
-    input logic [31:0] MEPC,
     input logic [31:0] PC_IN,
     output logic [31:0] PC_OUT,
     output logic [31:0] PC_OUT_INC
-    );
-    
-    //Create logic for intermediate signals to serve as wires between modules
-    logic [31:0] PC_OUT_PLUS_FOUR;
-    
-    //Assign values to outputs
-    assign PC_OUT_PLUS_FOUR = PC_OUT + 4;
-    assign PC_OUT_INC = PC_OUT_PLUS_FOUR;
-    
-    
-    //Instantiate PC Register
-    PC_REG PCREG(.CLK(CLK), .RST(RST), .D(PC_WRITE), .IN(PC_IN), .OUT(PC_OUT));
-    
+);
+
+  //Create logic for intermediate signals to serve as wires between modules
+  logic [31:0] PC_OUT_PLUS_FOUR;
+
+  //Assign values to outputs
+  assign PC_OUT_PLUS_FOUR = PC_OUT + 4;
+  assign PC_OUT_INC = PC_OUT_PLUS_FOUR;
+
+
+  //Instantiate PC Register
+  PC_REG PCREG (
+      .CLK(CLK),
+      .RST(RST),
+      .D  (PC_WRITE),
+      .IN (PC_IN),
+      .OUT(PC_OUT)
+  );
+
 endmodule

@@ -44,7 +44,6 @@ typedef struct packed {
 
 module OTTER_MCU (
     input  logic        CLK,
-    input  logic        INTR,
     input  logic        RESET,
     input  logic [31:0] IOBUS_IN,
     output logic [31:0] IOBUS_OUT,
@@ -79,29 +78,11 @@ module OTTER_MCU (
     logic [31:0] de_ex_opA_fwd, de_ex_rs2_fwd;
     // IF/DE pipeline registers
     logic [31:0] if_de_pc, if_de_next_pc, if_de_ir;
-    
-    initial begin
-    if_de_ir      = 0;
-    if_de_pc      = 0;
-    if_de_next_pc = 0;
-    end
-
     // DE/EX pipeline registers
     logic [31:0] de_ex_opA, de_ex_rs2;
     logic [31:0] de_ex_I_immed, de_ex_S_immed, de_ex_U_immed,
                  de_ex_J_immed, de_ex_B_immed;
     instr_t      de_ex_inst, de_inst;
-    
-    initial begin
-    de_ex_inst = 0;
-    de_ex_J_immed = 0;
-    de_ex_B_immed = 0;
-    de_ex_I_immed = 0;
-    de_ex_S_immed = 0;
-    de_ex_U_immed = 0;
-    de_ex_opA     = 0;
-    de_ex_rs2     = 0;
-    end
 
     // EX/MEM pipeline registers
     logic [31:0] ex_mem_aluResult, ex_mem_rs2;
@@ -282,7 +263,7 @@ module OTTER_MCU (
       );
 
     assign pcWrite = !(stall);
-    assign flush = (de_ex_inst.pc_sel == 3'b001 || de_ex_inst.pc_sel == 3'b011 || branch_taken);
+    assign flush = (pc_sel == 3'b001 || pc_sel == 3'b011 || branch_taken);
     assign flush_twice = branch_taken;
     assign addr1      = pc[15:2];
     assign opcode     = if_de_ir[6:0];
@@ -293,28 +274,50 @@ module OTTER_MCU (
 
     //Instantiate PC Multiplexer
     PC_MUX PCMUX(.PC_OUT_PLUS_FOUR(next_pc), .JALR(jalr), .BRANCH(branch),
-     .JAL(jal), .MTVEC(), .MEPC(), .BRANCH_TAKEN(pc_branch_sel), .PC_MUX_OUT(pc_mux_out));
+     .JAL(jal), .BRANCH_TAKEN(pc_branch_sel), .PC_MUX_OUT(pc_mux_out));
 
     //==========================================================
     //==== Instruction Fetch ====================================
     //==========================================================
 
+    // always_ff @(posedge CLK) begin
+    //     if(flush)begin
+    //       if_de_ir <= 0;
+    //     end
+    //
+    //     else if(stall)begin
+    //
+    //     end
+    //
+    //     else begin
+    //     if_de_pc      <= pc;
+    //     if_de_ir      <= IR;
+    //     if_de_next_pc <= next_pc;
+    //     end
+    // end
+
     always_ff @(posedge CLK) begin
-        if(flush)begin
-          if_de_ir <= 0;
+        if (RESET) begin
+            if_de_ir      <= 32'b0;
+            if_de_pc      <= 32'b0;
+            if_de_next_pc <= 32'b0;
         end
-
-        else if(stall)begin
-
+        else if (flush) begin
+            if_de_ir      <= 32'b0;
+            if_de_pc      <= 32'b0;
+            if_de_next_pc <= 32'b0;
         end
-
+        else if (stall) begin
+            if_de_ir      <= if_de_ir;
+            if_de_pc      <= if_de_pc;
+            if_de_next_pc <= if_de_next_pc;
+        end
         else begin
-        if_de_pc      <= pc;
-        if_de_ir      <= IR;
-        if_de_next_pc <= next_pc;
+            if_de_pc      <= pc;
+            if_de_ir      <= IR;
+            if_de_next_pc <= next_pc;
         end
     end
-
 
     //==========================================================
     //==== Instruction Decode ==================================
@@ -353,12 +356,36 @@ module OTTER_MCU (
                            ||  de_inst.opcode == STORE
                            ||  de_inst.opcode == OP);
 
-    always_ff @(posedge CLK) begin
-      if(flush_twice | stall)begin
-        de_ex_inst <= 0;
-      end 
- 
+    // always_ff @(posedge CLK) begin
+    //   if(flush_twice | stall)begin
+    //     de_ex_inst <= 0;
+    //   end 
+    //
+    //
+    //   else begin
+    //     de_ex_inst    <= de_inst;
+    //     de_ex_opA     <= rs1;
+    //     de_ex_rs2     <= rs2;
+    //     de_ex_I_immed <= I_immed;
+    //     de_ex_S_immed <= S_immed;
+    //     de_ex_U_immed <= U_immed;
+    //     de_ex_J_immed <= J_immed;
+    //     de_ex_B_immed <= B_immed;
+    //
+    //   end 
+    // end
 
+    always_ff @(posedge CLK) begin
+      if (RESET || flush_twice || stall) begin
+        de_ex_inst    <= '0;
+        de_ex_opA     <= 32'b0;
+        de_ex_rs2     <= 32'b0;
+        de_ex_I_immed <= 32'b0;
+        de_ex_S_immed <= 32'b0;
+        de_ex_U_immed <= 32'b0;
+        de_ex_J_immed <= 32'b0;
+        de_ex_B_immed <= 32'b0;
+      end 
       else begin
         de_ex_inst    <= de_inst;
         de_ex_opA     <= rs1;
@@ -368,9 +395,7 @@ module OTTER_MCU (
         de_ex_U_immed <= U_immed;
         de_ex_J_immed <= J_immed;
         de_ex_B_immed <= B_immed;
-
       end 
-
     end
 
     //==========================================================

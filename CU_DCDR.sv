@@ -10,9 +10,6 @@ module CU_DCDR (
     input logic IR_30,
     input logic [6:0] IR_OPCODE,
     input logic [2:0] IR_FUNCT,
-    input logic BR_EQ,
-    input logic BR_LT,
-    input logic BR_LTU,
     output logic [3:0] ALU_FUN,
     output logic ALU_SRCA,
     output logic [1:0] ALU_SRCB,
@@ -20,7 +17,6 @@ module CU_DCDR (
     output logic [1:0] RF_WR_SEL,
     output logic REG_WRITE,
     output logic MEM_WE2,
-    output logic MEM_RDEN1,
     output logic MEM_RDEN2
 );
 
@@ -37,7 +33,6 @@ module CU_DCDR (
     RF_WR_SEL = 2'b00;
     REG_WRITE = 1'b0;
     MEM_WE2 = 1'b0;
-    MEM_RDEN1 = 1'b0;
     MEM_RDEN2 = 1'b0;
 
     //Case statement depending on the opcode for the
@@ -87,7 +82,7 @@ module CU_DCDR (
           3'b001: begin
             ALU_FUN = 4'b0001;
           end
-          1'b1: begin
+          3'b010: begin
             ALU_FUN = 4'b0010;
           end
           3'b011: begin

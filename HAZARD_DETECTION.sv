@@ -8,7 +8,7 @@
 module HAZARD_DETECTION (
     input logic IDEX_MemRead,
     input logic [4:0] IDEX_rt,
-    input logic [31:0] IFID_rs,
+    input logic [4:0] IFID_rs,
     IFID_rt,
     output logic stall
 );

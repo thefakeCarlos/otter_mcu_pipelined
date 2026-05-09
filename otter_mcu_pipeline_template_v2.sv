@@ -39,6 +39,7 @@ typedef struct packed {
     logic        alu_srcA;
     logic [1:0]  alu_srcB;
     logic [31:0] pc;
+    logic [2:0] pc_sel;
 } instr_t;
 
 module OTTER_MCU (
@@ -160,9 +161,9 @@ module OTTER_MCU (
 
     always_comb begin
       case (branch_taken)
-        1'b0: pc_branch_sel = pc_sel;
+        1'b0: pc_branch_sel = de_ex_inst.pc_sel;
         1'b1: pc_branch_sel = 3'b010;
-        default: pc_branch_sel = pc_sel;
+        default: pc_branch_sel = de_ex_inst.pc_sel;
       endcase
     end
 
@@ -281,7 +282,7 @@ module OTTER_MCU (
       );
 
     assign pcWrite = !(stall);
-    assign flush = (pc_sel == 3'b001 || pc_sel == 3'b011 || branch_taken);
+    assign flush = (de_ex_inst.pc_sel == 3'b001 || de_ex_inst.pc_sel == 3'b011 || branch_taken);
     assign flush_twice = branch_taken;
     assign addr1      = pc[15:2];
     assign opcode     = if_de_ir[6:0];
@@ -333,6 +334,7 @@ module OTTER_MCU (
 
     assign de_inst.regWrite  = regWrite;
     assign de_inst.memWrite  = memWrite;
+    assign de_inst.pc_sel = pc_sel;
 
 
     assign de_inst.rf_wr_sel = rf_wr_sel;

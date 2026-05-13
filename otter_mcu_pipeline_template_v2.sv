@@ -353,7 +353,6 @@ module OTTER_MCU (
 
     assign de_inst.rs2_used = de_inst.rs2_addr != 0
                            && (de_inst.opcode == BRANCH
-                           ||  de_inst.opcode == STORE
                            ||  de_inst.opcode == OP);
 
     // always_ff @(posedge CLK) begin

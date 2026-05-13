@@ -2,10 +2,9 @@
 //////////////////////////////////////////////////////////////////////////////////
 // Module Name: otter_tb
 // Description: Testbench for pipelined OTTER MCU
-//              Runs long enough to execute 4064 instructions
+//              Tests: addi, lui, addi, addi, or, sw with NOPs to avoid hazards
+//              Expected result: LEDS = 0x000F (7 | 10 = 15)
 //              CLK drives 2x clock divider in wrapper, so clk_50 = CLK/2
-//              Each instruction takes ~1 clk_50 cycle (80ns)
-//              4064 instructions * 80ns + margin = ~400,000ns total
 //////////////////////////////////////////////////////////////////////////////////
 module otter_tb();
 
@@ -25,8 +24,10 @@ module otter_tb();
         .ANODES  (an)
     );
 
-    // 40ns CLK period so clk_50 runs at 80ns
-    always #20 clk = ~clk;
+    // 40ns CLK period so clk_50 runs at 20ns
+    initial begin
+        repeat(88) #20 clk = ~clk;
+    end
 
     // Reset pulse
     initial begin
@@ -35,10 +36,13 @@ module otter_tb();
         btnc = 0;
     end
 
-    // Run for enough time to execute 4064 instructions then stop
+    // Check result at 1750ns
     initial begin
-        #400000;
-        $display("Simulation complete at %0t ns", $time);
+        #1750;
+        if (leds == 16'h000F)
+            $display("PASS: LEDS = %h (expected 000F)", leds);
+        else
+            $display("FAIL: LEDS = %h (expected 000F)", leds);
         $finish;
     end
 

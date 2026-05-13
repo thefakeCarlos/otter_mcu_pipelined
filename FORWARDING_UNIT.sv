@@ -24,7 +24,7 @@ module FORWARDING_UNIT (
     // Forward B
     if (ex_mem_rdused && ex_mem_rdaddr == de_ex_rs2addr && de_ex_rs2used && ex_mem_regwrite && (de_ex_rs2addr != 0))
       forwardB = 2'b01;
-    else if (mem_wb_rdused && mem_wb_rdaddr == de_ex_rs2addr && de_ex_rs2used && mem_wb_regwrite && (de_ex_rs1addr != 0))
+    else if (mem_wb_rdused && mem_wb_rdaddr == de_ex_rs2addr && de_ex_rs2used && mem_wb_regwrite && (de_ex_rs2addr != 0))
       forwardB = 2'b10;
     else forwardB = 2'b00;
 

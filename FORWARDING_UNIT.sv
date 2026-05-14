@@ -9,8 +9,11 @@ module FORWARDING_UNIT (
     input logic mem_wb_rdused,
     input logic de_ex_rs1used,
     input logic de_ex_rs2used,
+    input logic [4:0] ex_mem_rs2addr,
+    input logic regEnable,
     output logic [1:0] forwardA,
-    output logic [1:0] forwardB
+    output logic [1:0] forwardB,
+    output logic forwardC
 );
 
   always_comb begin
@@ -27,6 +30,11 @@ module FORWARDING_UNIT (
     else if (mem_wb_rdused && mem_wb_rdaddr == de_ex_rs2addr && de_ex_rs2used && mem_wb_regwrite && (de_ex_rs2addr != 0))
       forwardB = 2'b10;
     else forwardB = 2'b00;
+
+    // Forward C
+    if((mem_wb_rdaddr == ex_mem_rs2addr) && regEnable)
+      forwardC = 1'b1;
+    else forwardC = 1'b0;
 
   end
 

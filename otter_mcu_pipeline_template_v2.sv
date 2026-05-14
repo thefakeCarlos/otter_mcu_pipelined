@@ -72,10 +72,11 @@ module OTTER_MCU (
     wire        alu_srcA;
     wire [1:0]  alu_srcB;
     logic       br_lt, br_eq, br_ltu, branch_taken, stall, flush, flush_twice;
-    logic [31:0] pc_mux_out;
+    logic [31:0] pc_mux_out, mem_wb_rs2;
     wire [1:0]  rf_wr_sel;
     logic [1:0] forwardA, forwardB;
-    logic [31:0] de_ex_opA_fwd, de_ex_rs2_fwd;
+    logic forwardC;
+    logic [31:0] de_ex_opA_fwd, ex_mem_rs2_fwd, de_ex_rs2_fwd;
     // IF/DE pipeline registers
     logic [31:0] if_de_pc, if_de_next_pc, if_de_ir;
     // DE/EX pipeline registers
@@ -169,7 +170,7 @@ module OTTER_MCU (
         .MEM_WE2  (ex_mem_inst.memWrite),
         .MEM_ADDR1(addr1),
         .MEM_ADDR2(ex_mem_aluResult),
-        .MEM_DIN2 (ex_mem_rs2),
+        .MEM_DIN2 (ex_mem_rs2_fwd),
         .MEM_SIZE (ex_mem_inst.mem_type[1:0]),
         .MEM_SIGN (ex_mem_inst.mem_type[2]),
         .IO_IN    (IOBUS_IN),
@@ -237,6 +238,14 @@ module OTTER_MCU (
       endcase
     end
 
+    always_comb begin
+      case (forwardC)
+        1'b0: ex_mem_rs2_fwd = ex_mem_rs2;
+        1'b1: ex_mem_rs2_fwd = wd;
+        default: ex_mem_rs2_fwd = ex_mem_rs2;
+      endcase
+    end
+
 
     HAZARD_DETECTION hd (
       .IDEX_MemRead(de_ex_inst.memRead2),
@@ -258,8 +267,11 @@ module OTTER_MCU (
       .mem_wb_rdused  (mem_wb_inst.rd_used),
       .de_ex_rs1used  (de_ex_inst.rs1_used),
       .de_ex_rs2used  (de_ex_inst.rs2_used),
+      .ex_mem_rs2addr (ex_mem_inst.rs2_addr),
+      .regEnable      (mem_wb_inst.regWrite),
       .forwardA       (forwardA),
-      .forwardB       (forwardB)
+      .forwardB       (forwardB),
+      .forwardC       (forwardC)
       );
 
     assign pcWrite = !(stall);
@@ -268,7 +280,7 @@ module OTTER_MCU (
     assign addr1      = pc[15:2];
     assign opcode     = if_de_ir[6:0];
     assign IOBUS_ADDR = ex_mem_aluResult;
-    assign IOBUS_OUT  = ex_mem_rs2;
+    assign IOBUS_OUT  = ex_mem_rs2_fwd;
 
    
 
@@ -404,7 +416,7 @@ module OTTER_MCU (
     always_ff @(posedge CLK) begin
         ex_mem_inst      <= de_ex_inst;
         ex_mem_aluResult <= aluResult;
-        ex_mem_rs2       <= de_ex_rs2_fwd;  // Carried forward for store instructions
+        ex_mem_rs2 <= de_ex_rs2;
     end
 
     //==========================================================
@@ -414,6 +426,7 @@ module OTTER_MCU (
     always_ff @(posedge CLK) begin
         mem_wb_inst      <= ex_mem_inst;
         mem_wb_aluResult <= ex_mem_aluResult;
+        mem_wb_rs2 <= ex_mem_rs2;
         mem_wb_mem_data  <= mem_data;
     end
 

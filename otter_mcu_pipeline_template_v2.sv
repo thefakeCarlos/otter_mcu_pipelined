@@ -277,8 +277,7 @@ module OTTER_MCU (
       );
 
     assign pcWrite = ~stall;
-    assign flush = (pc_sel == 3'b001 || pc_sel == 3'b011 || branch_taken);
-    assign flush_twice = branch_taken;
+    assign flush = (de_ex_inst.pc_sel == 3'b001 || de_ex_inst.pc_sel == 3'b011 || branch_taken);
     assign addr1      = pc[15:2];
     assign opcode     = if_de_ir[6:0];
     assign IOBUS_ADDR = ex_mem_aluResult;
@@ -389,7 +388,7 @@ module OTTER_MCU (
     // end
 
     always_ff @(posedge CLK) begin
-      if (RESET || flush_twice || stall) begin
+      if (RESET || flush || stall) begin
         de_ex_inst    <= '0;
         de_ex_opA     <= 32'b0;
         de_ex_rs2     <= 32'b0;

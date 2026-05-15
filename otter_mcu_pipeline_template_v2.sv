@@ -98,12 +98,12 @@ module OTTER_MCU (
     //==========================================================
 
     ImmediateGenerator OTTER_IMGEN (
-    .IR    (if_de_ir[31:7]),
-    .U_TYPE(U_immed),
-    .I_TYPE(I_immed),
-    .S_TYPE(S_immed),
-    .B_TYPE(B_immed),
-    .J_TYPE(J_immed)
+      .IR    (if_de_ir[31:7]),
+      .U_TYPE(U_immed),
+      .I_TYPE(I_immed),
+      .S_TYPE(S_immed),
+      .B_TYPE(B_immed),
+      .J_TYPE(J_immed)
     );
 
     ALU ALU (
@@ -207,8 +207,7 @@ module OTTER_MCU (
         .SRC_A    (aluAin)
     );
 
-
-        FourMux opBmux (
+    FourMux opBmux (
         .SEL  (de_ex_inst.alu_srcB),
         .ZERO (de_ex_rs2),
         .ONE  (de_ex_I_immed),
@@ -216,7 +215,6 @@ module OTTER_MCU (
         .THREE(de_ex_inst.pc),
         .OUT  (aluBin)
     );
-
 
     // Forward mux for opA
     always_comb begin
@@ -246,7 +244,6 @@ module OTTER_MCU (
       endcase
     end
 
-
     HAZARD_DETECTION hd (
       .IDEX_MemRead(de_ex_inst.memRead2),
       .rs1_used    (de_ex_inst.rs1_used),
@@ -255,8 +252,7 @@ module OTTER_MCU (
       .IFID_rs     (de_inst.rs1_addr),
       .IFID_rt     (de_inst.rs2_addr),
       .stall       (stall)
-      );
-   
+    );
 
     FORWARDING_UNIT FWD_UNIT (
       .de_ex_rs1addr  (de_ex_inst.rs1_addr),
@@ -274,7 +270,7 @@ module OTTER_MCU (
       .forwardA       (forwardA),
       .forwardB       (forwardB),
       .forwardC       (forwardC)
-      );
+    );
 
     assign pcWrite = ~stall;
     assign flush = (de_ex_inst.pc_sel == 3'b001 || de_ex_inst.pc_sel == 3'b011 || branch_taken);
@@ -283,31 +279,19 @@ module OTTER_MCU (
     assign IOBUS_ADDR = ex_mem_aluResult;
     assign IOBUS_OUT  = ex_mem_rs2_fwd;
 
-   
-
     //Instantiate PC Multiplexer
-    PC_MUX PCMUX(.PC_OUT_PLUS_FOUR(next_pc), .JALR(jalr), .BRANCH(branch),
-     .JAL(jal), .BRANCH_TAKEN(pc_branch_sel), .PC_MUX_OUT(pc_mux_out));
+    PC_MUX PCMUX (
+      .PC_OUT_PLUS_FOUR(next_pc),
+      .JALR(jalr),
+      .BRANCH(branch),
+      .JAL(jal),
+      .BRANCH_TAKEN(pc_branch_sel),
+      .PC_MUX_OUT(pc_mux_out)
+    );
 
     //==========================================================
     //==== Instruction Fetch ====================================
     //==========================================================
-
-    // always_ff @(posedge CLK) begin
-    //     if(flush)begin
-    //       if_de_ir <= 0;
-    //     end
-    //
-    //     else if(stall)begin
-    //
-    //     end
-    //
-    //     else begin
-    //     if_de_pc      <= pc;
-    //     if_de_ir      <= IR;
-    //     if_de_next_pc <= next_pc;
-    //     end
-    // end
 
     always_ff @(posedge CLK) begin
         if (RESET) begin
@@ -352,7 +336,6 @@ module OTTER_MCU (
     assign de_inst.memWrite  = memWrite;
     assign de_inst.pc_sel = pc_sel;
 
-
     assign de_inst.rf_wr_sel = rf_wr_sel;
     assign de_inst.memRead2  = memRead2;
     assign de_inst.alu_srcA  = alu_srcA;
@@ -368,25 +351,6 @@ module OTTER_MCU (
                            && (de_inst.opcode == BRANCH
                            ||  de_inst.opcode == OP);
 
-    // always_ff @(posedge CLK) begin
-    //   if(flush_twice | stall)begin
-    //     de_ex_inst <= 0;
-    //   end 
-    //
-    //
-    //   else begin
-    //     de_ex_inst    <= de_inst;
-    //     de_ex_opA     <= rs1;
-    //     de_ex_rs2     <= rs2;
-    //     de_ex_I_immed <= I_immed;
-    //     de_ex_S_immed <= S_immed;
-    //     de_ex_U_immed <= U_immed;
-    //     de_ex_J_immed <= J_immed;
-    //     de_ex_B_immed <= B_immed;
-    //
-    //   end 
-    // end
-
     always_ff @(posedge CLK) begin
       if (RESET || flush || stall) begin
         de_ex_inst    <= '0;
@@ -397,7 +361,7 @@ module OTTER_MCU (
         de_ex_U_immed <= 32'b0;
         de_ex_J_immed <= 32'b0;
         de_ex_B_immed <= 32'b0;
-      end 
+      end
       else begin
         de_ex_inst    <= de_inst;
         de_ex_opA     <= rs1;
@@ -407,7 +371,7 @@ module OTTER_MCU (
         de_ex_U_immed <= U_immed;
         de_ex_J_immed <= J_immed;
         de_ex_B_immed <= B_immed;
-      end 
+      end
     end
 
     //==========================================================
@@ -441,6 +405,8 @@ module OTTER_MCU (
             2'b01: wd = 32'b0;               // CSR, tied to 0 for now
             2'b10: wd = mem_wb_mem_data;
             2'b11: wd = mem_wb_aluResult;
+        default:
+            wd = mem_wb_inst.pc + 4;
         endcase
     end
 

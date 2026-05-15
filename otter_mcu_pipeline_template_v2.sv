@@ -165,7 +165,7 @@ module OTTER_MCU (
 
     Memory OTTER_MEMORY (
         .MEM_CLK  (CLK),
-        .MEM_RDEN1(1'b1),
+        .MEM_RDEN1(~stall),
         .MEM_RDEN2(ex_mem_inst.memRead2),
         .MEM_WE2  (ex_mem_inst.memWrite),
         .MEM_ADDR1(addr1),
@@ -249,6 +249,8 @@ module OTTER_MCU (
 
     HAZARD_DETECTION hd (
       .IDEX_MemRead(de_ex_inst.memRead2),
+      .rs1_used    (de_ex_inst.rs1_used),
+      .rs2_used    (de_ex_inst.rs2_used),
       .IDEX_rt     (de_ex_inst.rd_addr),
       .IFID_rs     (de_inst.rs1_addr),
       .IFID_rt     (de_inst.rs2_addr),
@@ -274,7 +276,7 @@ module OTTER_MCU (
       .forwardC       (forwardC)
       );
 
-    assign pcWrite = !(stall);
+    assign pcWrite = ~stall;
     assign flush = (pc_sel == 3'b001 || pc_sel == 3'b011 || branch_taken);
     assign flush_twice = branch_taken;
     assign addr1      = pc[15:2];

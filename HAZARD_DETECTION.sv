@@ -7,12 +7,14 @@
 
 module HAZARD_DETECTION (
     input logic IDEX_MemRead,
+    input logic rs1_used,
+    input logic rs2_used,
     input logic [4:0] IDEX_rt,
     input logic [4:0] IFID_rs,
     IFID_rt,
     output logic stall
 );
 
-  assign stall = (IDEX_MemRead && ((IDEX_rt == IFID_rs) || (IDEX_rt == IFID_rt)));
+  assign stall = (IDEX_MemRead && ((rs1_used && (IDEX_rt == IFID_rs)) || (rs2_used && (IDEX_rt == IFID_rt))));
 
 endmodule

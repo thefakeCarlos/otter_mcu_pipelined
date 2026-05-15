@@ -26,7 +26,7 @@ module otter_tb();
 
     // 40ns CLK period so clk_50 runs at 20ns
     initial begin
-        repeat(88) #20 clk = ~clk;
+        repeat(1000000000) #20 clk = ~clk;
     end
 
     // Reset pulse
@@ -38,7 +38,7 @@ module otter_tb();
 
     // Check result at 1750ns
     initial begin
-        #1750;
+        #1750000;
         if (leds == 16'h000F)
             $display("PASS: LEDS = %h (expected 000F)", leds);
         else

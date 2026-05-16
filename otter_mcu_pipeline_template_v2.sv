@@ -71,7 +71,7 @@ module OTTER_MCU (
     wire [3:0]  alu_fun;
     wire        alu_srcA;
     wire [1:0]  alu_srcB;
-    logic       br_lt, br_eq, br_ltu, branch_taken, stall, flush, flush_twice;
+    logic       br_lt, br_eq, br_ltu, branch_taken, stall, flush;
     logic [31:0] pc_mux_out, mem_wb_rs2;
     wire [1:0]  rf_wr_sel;
     logic [1:0] forwardA, forwardB;
@@ -221,7 +221,7 @@ module OTTER_MCU (
       case (forwardA)
         2'b00: de_ex_opA_fwd = aluAin;
         2'b01: de_ex_opA_fwd = ex_mem_aluResult;
-        2'b10: de_ex_opA_fwd = mem_wb_aluResult;
+        2'b10: de_ex_opA_fwd = wd;            // Bug 1 fix: use wd so loads forward mem_data not aluResult
         default: de_ex_opA_fwd = aluAin;
       endcase
     end
@@ -231,7 +231,7 @@ module OTTER_MCU (
       case (forwardB)
         2'b00: de_ex_rs2_fwd = aluBin;
         2'b01: de_ex_rs2_fwd = ex_mem_aluResult;
-        2'b10: de_ex_rs2_fwd = mem_wb_aluResult;
+        2'b10: de_ex_rs2_fwd = wd;            // Bug 1 fix: use wd so loads forward mem_data not aluResult
         default: de_ex_rs2_fwd = aluBin;
       endcase
     end
@@ -295,12 +295,12 @@ module OTTER_MCU (
 
     always_ff @(posedge CLK) begin
         if (RESET) begin
-            if_de_ir      <= 32'b0;
+            if_de_ir      <= 32'h00000013;  // NOP
             if_de_pc      <= 32'b0;
             if_de_next_pc <= 32'b0;
         end
         else if (flush) begin
-            if_de_ir      <= 32'b0;
+            if_de_ir      <= 32'h00000013;  // NOP
             if_de_pc      <= 32'b0;
             if_de_next_pc <= 32'b0;
         end
@@ -349,7 +349,8 @@ module OTTER_MCU (
 
     assign de_inst.rs2_used = de_inst.rs2_addr != 0
                            && (de_inst.opcode == BRANCH
-                           ||  de_inst.opcode == OP);
+                           ||  de_inst.opcode == OP
+                           ||  de_inst.opcode == STORE); // Bug 2 fix: STORE reads rs2 as write data
 
     always_ff @(posedge CLK) begin
       if (RESET || flush || stall) begin
@@ -381,7 +382,7 @@ module OTTER_MCU (
     always_ff @(posedge CLK) begin
         ex_mem_inst      <= de_ex_inst;
         ex_mem_aluResult <= aluResult;
-        ex_mem_rs2 <= de_ex_rs2;
+        ex_mem_rs2       <= de_ex_rs2_fwd; // Bug 3 fix: latch forwarded value so store data is correct
     end
 
     //==========================================================

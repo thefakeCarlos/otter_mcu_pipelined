@@ -368,7 +368,7 @@ module OTTER_MCU (
 
     always_ff @(posedge CLK) begin
       if (RESET || flush || stall) begin
-        de_ex_inst    <= '0;
+        de_ex_inst    <= 32'h00000013;
         de_ex_opA     <= 32'b0;
         de_ex_rs2     <= 32'b0;
         de_ex_I_immed <= 32'b0;

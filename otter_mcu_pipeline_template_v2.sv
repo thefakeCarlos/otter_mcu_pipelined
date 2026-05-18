@@ -3,7 +3,6 @@
 // Engineer:  Carlos Diaz and Nathan Hernandez
 // Module Name: PIPELINED_OTTER_CPU
 // Description: 5-stage pipelined RISC-V OTTER MCU (IF -> ID -> EX -> MEM -> WB)
-//              Assumes no hazards
 //////////////////////////////////////////////////////////////////////////////////
 
 // Enum for RISC-V base instruction opcodes
@@ -77,6 +76,7 @@ module OTTER_MCU (
     logic [1:0] forwardA, forwardB;
     logic forwardC;
     logic [31:0] de_ex_opA_fwd, ex_mem_rs2_fwd, de_ex_rs2_fwd;
+    logic [31:0] de_ex_rs2_store_fwd;
     // IF/DE pipeline registers
     logic [31:0] if_de_pc, if_de_next_pc, if_de_ir;
     // DE/EX pipeline registers
@@ -165,7 +165,7 @@ module OTTER_MCU (
 
     Memory OTTER_MEMORY (
         .MEM_CLK  (CLK),
-        .MEM_RDEN1(~stall),
+        .MEM_RDEN1(1'b1),
         .MEM_RDEN2(ex_mem_inst.memRead2),
         .MEM_WE2  (ex_mem_inst.memWrite),
         .MEM_ADDR1(addr1),
@@ -221,21 +221,34 @@ module OTTER_MCU (
       case (forwardA)
         2'b00: de_ex_opA_fwd = aluAin;
         2'b01: de_ex_opA_fwd = ex_mem_aluResult;
-        2'b10: de_ex_opA_fwd = wd;            // Bug 1 fix: use wd so loads forward mem_data not aluResult
+        2'b10: de_ex_opA_fwd = wd;
         default: de_ex_opA_fwd = aluAin;
       endcase
     end
 
-    // Forward mux for opB
+    // Forward mux for opB (ALU operand) - STORE always uses S_immed for address calc
     always_comb begin
-      case (forwardB)
+      if (de_ex_inst.opcode == STORE)
+        de_ex_rs2_fwd = aluBin;
+      else case (forwardB)
         2'b00: de_ex_rs2_fwd = aluBin;
         2'b01: de_ex_rs2_fwd = ex_mem_aluResult;
-        2'b10: de_ex_rs2_fwd = wd;            // Bug 1 fix: use wd so loads forward mem_data not aluResult
+        2'b10: de_ex_rs2_fwd = wd;
         default: de_ex_rs2_fwd = aluBin;
       endcase
     end
 
+    // Forward mux for store data - uses de_ex_rs2 as base, not aluBin
+    always_comb begin
+      case (forwardB)
+        2'b00: de_ex_rs2_store_fwd = de_ex_rs2;
+        2'b01: de_ex_rs2_store_fwd = ex_mem_aluResult;
+        2'b10: de_ex_rs2_store_fwd = wd;
+        default: de_ex_rs2_store_fwd = de_ex_rs2;
+      endcase
+    end
+
+    // Forward mux for MEM stage store data (covers WB-stage hazard)
     always_comb begin
       case (forwardC)
         1'b0: ex_mem_rs2_fwd = ex_mem_rs2;
@@ -265,6 +278,7 @@ module OTTER_MCU (
       .mem_wb_rdused  (mem_wb_inst.rd_used),
       .de_ex_rs1used  (de_ex_inst.rs1_used),
       .de_ex_rs2used  (de_ex_inst.rs2_used),
+      .ex_mem_rs2used (ex_mem_inst.rs2_used),
       .ex_mem_rs2addr (ex_mem_inst.rs2_addr),
       .regEnable      (mem_wb_inst.regWrite),
       .forwardA       (forwardA),
@@ -321,7 +335,7 @@ module OTTER_MCU (
     //==========================================================
 
     opcode_t OPCODE;
-    assign OPCODE = opcode_t'(if_de_ir[6:0]); // Cast raw bits to enum type
+    assign OPCODE = opcode_t'(if_de_ir[6:0]);
 
     assign de_inst.opcode    = OPCODE;
     assign de_inst.ir_funct  = if_de_ir[14:12];
@@ -334,7 +348,7 @@ module OTTER_MCU (
 
     assign de_inst.regWrite  = regWrite;
     assign de_inst.memWrite  = memWrite;
-    assign de_inst.pc_sel = pc_sel;
+    assign de_inst.pc_sel    = pc_sel;
 
     assign de_inst.rf_wr_sel = rf_wr_sel;
     assign de_inst.memRead2  = memRead2;
@@ -350,7 +364,7 @@ module OTTER_MCU (
     assign de_inst.rs2_used = de_inst.rs2_addr != 0
                            && (de_inst.opcode == BRANCH
                            ||  de_inst.opcode == OP
-                           ||  de_inst.opcode == STORE); // Bug 2 fix: STORE reads rs2 as write data
+                           ||  de_inst.opcode == STORE);
 
     always_ff @(posedge CLK) begin
       if (RESET || flush || stall) begin
@@ -382,7 +396,7 @@ module OTTER_MCU (
     always_ff @(posedge CLK) begin
         ex_mem_inst      <= de_ex_inst;
         ex_mem_aluResult <= aluResult;
-        ex_mem_rs2       <= de_ex_rs2_fwd; // Bug 3 fix: latch forwarded value so store data is correct
+        ex_mem_rs2       <= de_ex_rs2_store_fwd;
     end
 
     //==========================================================
@@ -392,7 +406,7 @@ module OTTER_MCU (
     always_ff @(posedge CLK) begin
         mem_wb_inst      <= ex_mem_inst;
         mem_wb_aluResult <= ex_mem_aluResult;
-        mem_wb_rs2 <= ex_mem_rs2;
+        mem_wb_rs2       <= ex_mem_rs2;
         mem_wb_mem_data  <= mem_data;
     end
 

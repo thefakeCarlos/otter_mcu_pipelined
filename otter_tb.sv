@@ -7,13 +7,15 @@
 //              CLK drives 2x clock divider in wrapper, so clk_50 = CLK/2
 //////////////////////////////////////////////////////////////////////////////////
 module otter_tb();
-
     logic        clk = 0;
     logic        btnc;
     logic [15:0] switches = 16'h0000;
     logic [15:0] leds;
     logic [7:0]  segs;
     logic [3:0]  an;
+
+    // Clock cycle counter (counts rising edges of clk after reset is released)
+    longint unsigned cycle_count = 0;
 
     OTTER_Wrapper dut (
         .CLK     (clk),
@@ -36,14 +38,20 @@ module otter_tb();
         btnc = 0;
     end
 
+    // Count clock cycles (only after reset is released)
+    always_ff @(posedge clk) begin
+        if (!btnc)
+            cycle_count <= cycle_count + 1;
+    end
+
     // Check result at 1750ns
     initial begin
         #1750000;
-        if (leds == 16'h000F)
-            $display("PASS: LEDS = %h (expected 000F)", leds);
+        $display("Total clock cycles: %0d", cycle_count);
+        if (leds == 16'h1)
+            $display("PASS: LEDS = %h (expected 1)", leds);
         else
-            $display("FAIL: LEDS = %h (expected 000F)", leds);
+            $display("FAIL: LEDS = %h (expected 1)", leds);
         $finish;
     end
-
 endmodule

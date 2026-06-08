@@ -38,7 +38,6 @@ typedef struct packed {
     logic        alu_srcA;
     logic [1:0]  alu_srcB;
     logic [31:0] pc;
-    logic [2:0] pc_sel;
 } instr_t;
 
 module OTTER_MCU (
@@ -60,7 +59,7 @@ module OTTER_MCU (
                 aluBin, aluAin, aluResult,
                 mem_data, jal, jalr, branch;
     logic [31:0] wd;
-    logic [2:0]pc_branch_sel;
+    logic [2:0] pc_branch_sel;
     wire [31:0] IR;
     wire [31:0] rs1, rs2;
     wire        memRead2;
@@ -70,15 +69,16 @@ module OTTER_MCU (
     wire [3:0]  alu_fun;
     wire        alu_srcA;
     wire [1:0]  alu_srcB;
-    logic       br_lt, br_eq, br_ltu, branch_taken, stall, flush;
+    logic       br_lt, br_eq, br_ltu, branch_taken, stall, flush, hold_flush;
     logic [31:0] pc_mux_out, mem_wb_rs2;
     wire [1:0]  rf_wr_sel;
     logic [1:0] forwardA, forwardB;
     logic forwardC;
     logic [31:0] de_ex_opA_fwd, ex_mem_rs2_fwd, de_ex_rs2_fwd;
     logic [31:0] de_ex_rs2_store_fwd;
-    // IF/DE pipeline registers
-    logic [31:0] if_de_pc, if_de_next_pc, if_de_ir;
+    // IF/DE pipeline registers (matching correct sim: pc_de holds prev pc, IR used directly)
+    logic [31:0] if_de_pc, if_de_next_pc;
+    logic [31:0] fetch_pc;
     // DE/EX pipeline registers
     logic [31:0] de_ex_opA, de_ex_rs2;
     logic [31:0] de_ex_I_immed, de_ex_S_immed, de_ex_U_immed,
@@ -98,7 +98,7 @@ module OTTER_MCU (
     //==========================================================
 
     ImmediateGenerator OTTER_IMGEN (
-      .IR    (if_de_ir[31:7]),
+      .IR    (IR[31:7]),
       .U_TYPE(U_immed),
       .I_TYPE(I_immed),
       .S_TYPE(S_immed),
@@ -141,18 +141,26 @@ module OTTER_MCU (
       .BRANCH_TAKEN(branch_taken)
       );
 
+    // Compute pc_branch_sel directly from de_ex_inst.opcode (like correct sim)
     always_comb begin
-      case (branch_taken)
-        1'b0: pc_branch_sel = de_ex_inst.pc_sel;
-        1'b1: pc_branch_sel = 3'b010;
-        default: pc_branch_sel = de_ex_inst.pc_sel;
-      endcase
+        if (branch_taken)
+            pc_branch_sel = 3'b010;  // BRANCH target
+        else case (de_ex_inst.opcode)
+            JAL:  pc_branch_sel = 3'b011;  // JAL target
+            JALR: pc_branch_sel = 3'b001;  // JALR target
+            default: pc_branch_sel = 3'b000;  // PC+4
+        endcase
     end
 
+    // Flush when a jump/branch is in EX
+    assign flush = (de_ex_inst.opcode == JAL ||
+                    de_ex_inst.opcode == JALR ||
+                    branch_taken);
+
     CU_DCDR CU_DCDR (
-        .IR_30    (if_de_ir[30]),
-        .IR_OPCODE(if_de_ir[6:0]),
-        .IR_FUNCT (if_de_ir[14:12]),
+        .IR_30    (IR[30]),
+        .IR_OPCODE(IR[6:0]),
+        .IR_FUNCT (IR[14:12]),
         .ALU_FUN  (alu_fun),
         .ALU_SRCA (alu_srcA),
         .ALU_SRCB (alu_srcB),
@@ -192,8 +200,8 @@ module OTTER_MCU (
     REG_FILE REG_FILE (
         .CLK (CLK),
         .EN  (mem_wb_inst.regWrite),
-        .ADR1(if_de_ir[19:15]),
-        .ADR2(if_de_ir[24:20]),
+        .ADR1(IR[19:15]),
+        .ADR2(IR[24:20]),
         .WA  (mem_wb_inst.rd_addr),
         .WD  (wd),
         .RS1 (rs1),
@@ -257,15 +265,18 @@ module OTTER_MCU (
       endcase
     end
 
+    logic raw_stall;
     HAZARD_DETECTION hd (
       .IDEX_MemRead(de_ex_inst.memRead2),
-      .rs1_used    (de_ex_inst.rs1_used),
-      .rs2_used    (de_ex_inst.rs2_used),
+      .rs1_used    (de_inst.rs1_used),
+      .rs2_used    (de_inst.rs2_used),
       .IDEX_rt     (de_ex_inst.rd_addr),
       .IFID_rs     (de_inst.rs1_addr),
       .IFID_rt     (de_inst.rs2_addr),
-      .stall       (stall)
+      .stall       (raw_stall)
     );
+    // Suppress stall during flush so PC can redirect to branch/jump target
+    assign stall = raw_stall && !flush && !hold_flush;
 
     FORWARDING_UNIT FWD_UNIT (
       .de_ex_rs1addr  (de_ex_inst.rs1_addr),
@@ -286,10 +297,9 @@ module OTTER_MCU (
       .forwardC       (forwardC)
     );
 
-    assign pcWrite = ~stall;
-    assign flush = (de_ex_inst.pc_sel == 3'b001 || de_ex_inst.pc_sel == 3'b011 || branch_taken);
+    assign pcWrite    = ~stall;
     assign addr1      = pc[15:2];
-    assign opcode     = if_de_ir[6:0];
+    assign opcode     = IR[6:0];
     assign IOBUS_ADDR = ex_mem_aluResult;
     assign IOBUS_OUT  = ex_mem_rs2_fwd;
 
@@ -303,29 +313,23 @@ module OTTER_MCU (
       .PC_MUX_OUT(pc_mux_out)
     );
 
+    // hold_flush delays flush by one cycle (matches correct sim's hold_flush)
+    always_ff @(posedge CLK) begin
+        if (RESET) hold_flush <= '0;
+        else       hold_flush <= flush;
+    end
+
     //==========================================================
     //==== Instruction Fetch ====================================
     //==========================================================
 
     always_ff @(posedge CLK) begin
         if (RESET) begin
-            if_de_ir      <= '0;  // NOP
             if_de_pc      <= '0;
             if_de_next_pc <= '0;
         end
-        else if (flush) begin
-            if_de_ir      <= '0;  // NOP
-            if_de_pc      <= '0;
-            if_de_next_pc <= '0;
-        end
-        else if (stall) begin
-            if_de_ir      <= if_de_ir;
-            if_de_pc      <= if_de_pc;
-            if_de_next_pc <= if_de_next_pc;
-        end
-        else begin
+        else if (!stall) begin
             if_de_pc      <= pc;
-            if_de_ir      <= IR;
             if_de_next_pc <= next_pc;
         end
     end
@@ -335,20 +339,19 @@ module OTTER_MCU (
     //==========================================================
 
     opcode_t OPCODE;
-    assign OPCODE = opcode_t'(if_de_ir[6:0]);
+    assign OPCODE = opcode_t'(IR[6:0]);
 
     assign de_inst.opcode    = OPCODE;
-    assign de_inst.ir_funct  = if_de_ir[14:12];
-    assign de_inst.rs1_addr  = if_de_ir[19:15];
-    assign de_inst.rs2_addr  = if_de_ir[24:20];
-    assign de_inst.rd_addr   = if_de_ir[11:7];
+    assign de_inst.ir_funct  = IR[14:12];
+    assign de_inst.rs1_addr  = IR[19:15];
+    assign de_inst.rs2_addr  = IR[24:20];
+    assign de_inst.rd_addr   = IR[11:7];
     assign de_inst.pc        = if_de_pc;
     assign de_inst.alu_fun   = alu_fun;
-    assign de_inst.mem_type  = if_de_ir[14:12];
+    assign de_inst.mem_type  = IR[14:12];
 
     assign de_inst.regWrite  = regWrite;
     assign de_inst.memWrite  = memWrite;
-    assign de_inst.pc_sel    = pc_sel;
 
     assign de_inst.rf_wr_sel = rf_wr_sel;
     assign de_inst.memRead2  = memRead2;
@@ -367,17 +370,6 @@ module OTTER_MCU (
                            ||  de_inst.opcode == STORE);
 
     always_ff @(posedge CLK) begin
-      if (RESET || flush || stall) begin
-        de_ex_inst    <= '0;
-        de_ex_opA     <= '0;
-        de_ex_rs2     <= '0;
-        de_ex_I_immed <= '0;
-        de_ex_S_immed <= '0;
-        de_ex_U_immed <= '0;
-        de_ex_J_immed <= '0;
-        de_ex_B_immed <= '0;
-      end
-      else begin
         de_ex_inst    <= de_inst;
         de_ex_opA     <= rs1;
         de_ex_rs2     <= rs2;
@@ -386,7 +378,11 @@ module OTTER_MCU (
         de_ex_U_immed <= U_immed;
         de_ex_J_immed <= J_immed;
         de_ex_B_immed <= B_immed;
-      end
+        if (RESET || flush || hold_flush || stall) begin
+            de_ex_inst.regWrite <= '0;
+            de_ex_inst.memWrite <= '0;
+            de_ex_inst.opcode   <= opcode_t'(7'b0);
+        end
     end
 
     //==========================================================
@@ -407,7 +403,9 @@ module OTTER_MCU (
         mem_wb_inst      <= ex_mem_inst;
         mem_wb_aluResult <= ex_mem_aluResult;
         mem_wb_rs2       <= ex_mem_rs2;
-        mem_wb_mem_data  <= mem_data;
+        // mem_wb_mem_data not registered: use live mem_data (= MEM_DOUT2) at WB time.
+        // OTTER_mem_byte has 1-cycle delay on data output, so mem_data at WB cycle
+        // reflects the address read during MEM cycle. (Matches FiveStageOtter behavior.)
     end
 
     //==========================================================
@@ -418,7 +416,7 @@ module OTTER_MCU (
         case (mem_wb_inst.rf_wr_sel)
             2'b00: wd = mem_wb_inst.pc + 4;  // JAL/JALR return address
             2'b01: wd = 32'b0;               // CSR, tied to 0 for now
-            2'b10: wd = mem_wb_mem_data;
+            2'b10: wd = mem_data;            // live memory output (1-cycle delayed by BRAM)
             2'b11: wd = mem_wb_aluResult;
         default:
             wd = mem_wb_inst.pc + 4;

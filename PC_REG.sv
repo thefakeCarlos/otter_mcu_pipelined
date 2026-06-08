@@ -17,7 +17,7 @@ module PC_REG(
     //Create PC Register!
     always_ff@(posedge CLK) begin
         if (RST == 1'b1) begin //If reset is high, set PC output to 0
-            OUT <= 32'h00000000;
+            OUT <= 32'h0;
         end
         else if (D == 1'b1) begin //if Reset is low and D is high,
             OUT <= IN;              //set PC output to the input!

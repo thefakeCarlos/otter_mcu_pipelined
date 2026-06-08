@@ -55,13 +55,7 @@ module OTTER_Wrapper (
   );
 
   // Declare Seven Segment Display /////////////////////////////////////////
-  SevSegDisp SSG_DISP (
-      .DATA_IN(r_SSEG),
-      .CLK(CLK),
-      .MODE(1'b0),
-      .CATHODES(CATHODES),
-      .ANODES(ANODES)
-  );
+  
 
 
   // Clock Divider to create 50 MHz Clock //////////////////////////////////
